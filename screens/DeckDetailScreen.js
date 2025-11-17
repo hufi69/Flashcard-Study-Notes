@@ -9,13 +9,17 @@ import {
   Alert,
   Platform,
   StatusBar,
+  TextInput,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { loadCards, saveCards, loadDecks } from '../utils/storage';
+import { loadCards, saveCards, loadDecks, getDueCards } from '../utils/storage';
 
 const DeckDetailScreen = ({ navigation, route }) => {
   const { deck } = route.params;
   const [cards, setCards] = useState([]);
+  const [dueCardsCount, setDueCardsCount] = useState(0);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showSearch, setShowSearch] = useState(false);
 
   useEffect(() => {
     loadCardData();
@@ -29,6 +33,10 @@ const DeckDetailScreen = ({ navigation, route }) => {
     const allCards = await loadCards();
     const deckCards = allCards.filter((c) => c.deckId === deck.id);
     setCards(deckCards);
+    
+    // Calculate due cards
+    const dueCards = await getDueCards(deck.id);
+    setDueCardsCount(dueCards.length);
   };
 
   const handleDeleteCard = (card) => {
@@ -54,6 +62,11 @@ const DeckDetailScreen = ({ navigation, route }) => {
   const handleEditCard = (card) => {
     navigation.navigate('CreateCard', { deck, card });
   };
+
+  const filteredCards = cards.filter((card) =>
+    card.question.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    card.answer.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   const renderCard = ({ item }) => (
     <TouchableOpacity
@@ -104,18 +117,54 @@ const DeckDetailScreen = ({ navigation, route }) => {
         </TouchableOpacity>
         <View style={styles.headerContent}>
           <Text style={styles.headerTitle}>{deck.name}</Text>
-          <Text style={styles.headerSubtitle}>
-            {cards.length} {cards.length === 1 ? 'card' : 'cards'}
-          </Text>
+          <View style={styles.headerSubtitleContainer}>
+            <Text style={styles.headerSubtitle}>
+              {cards.length} {cards.length === 1 ? 'card' : 'cards'}
+            </Text>
+            {dueCardsCount > 0 && (
+              <View style={styles.dueBadge}>
+                <Ionicons name="time-outline" size={12} color="#f59e0b" />
+                <Text style={styles.dueBadgeText}>{dueCardsCount} due</Text>
+              </View>
+            )}
+          </View>
         </View>
-        <TouchableOpacity
-          style={styles.editButton}
-          onPress={() => navigation.navigate('CreateDeck', { deck })}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="create-outline" size={24} color="#06b6d4" />
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            style={styles.searchIconButton}
+            onPress={() => setShowSearch(!showSearch)}
+            activeOpacity={0.7}
+          >
+            <Ionicons name={showSearch ? 'close' : 'search'} size={24} color="#06b6d4" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.editButton}
+            onPress={() => navigation.navigate('CreateDeck', { deck })}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="create-outline" size={24} color="#06b6d4" />
+          </TouchableOpacity>
+        </View>
       </View>
+
+      {showSearch && (
+        <View style={styles.searchContainer}>
+          <Ionicons name="search" size={20} color="#9ca3af" style={styles.searchIcon} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search cards..."
+            placeholderTextColor="#6b7280"
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            autoFocus
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchQuery('')}>
+              <Ionicons name="close-circle" size={20} color="#9ca3af" />
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
 
       {cards.length === 0 ? (
         <View style={styles.emptyState}>
@@ -125,9 +174,17 @@ const DeckDetailScreen = ({ navigation, route }) => {
             Add your first card to get started!
           </Text>
         </View>
+      ) : filteredCards.length === 0 && searchQuery ? (
+        <View style={styles.emptyState}>
+          <Ionicons name="search-outline" size={80} color="#4b5563" />
+          <Text style={styles.emptyStateText}>No cards found</Text>
+          <Text style={styles.emptyStateSubtext}>
+            Try a different search term
+          </Text>
+        </View>
       ) : (
         <FlatList
-          data={cards}
+          data={filteredCards}
           keyExtractor={(item) => item.id}
           renderItem={renderCard}
           contentContainerStyle={styles.listContent}
@@ -135,28 +192,51 @@ const DeckDetailScreen = ({ navigation, route }) => {
       )}
 
       <View style={styles.actionButtons}>
-        <TouchableOpacity
-          style={styles.studyButton}
-          onPress={() => {
-            if (cards.length === 0) {
-              Alert.alert('No Cards', 'Add some cards before studying!');
-              return;
-            }
-            navigation.navigate('Study', { deck, cards });
-          }}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="play-circle" size={24} color="#ffffff" />
-          <Text style={styles.studyButtonText}>Study</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.addButton}
-          onPress={() => navigation.navigate('CreateCard', { deck })}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="add-circle" size={24} color="#06b6d4" />
-          <Text style={styles.addButtonText}>Add Card</Text>
-        </TouchableOpacity>
+        {dueCardsCount > 0 ? (
+          <View style={styles.buttonRow}>
+            <TouchableOpacity
+              style={styles.studyDueButton}
+              onPress={async () => {
+                const dueCards = await getDueCards(deck.id);
+                if (dueCards.length === 0) {
+                  Alert.alert('No Due Cards', 'All cards are up to date!');
+                  return;
+                }
+                navigation.navigate('Study', { deck, cards: dueCards });
+              }}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="time" size={18} color="#f59e0b" />
+              <Text style={styles.studyDueButtonText} numberOfLines={1}>
+                Study Due ({dueCardsCount})
+              </Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
+        <View style={styles.buttonRow}>
+          <TouchableOpacity
+            style={styles.studyButton}
+            onPress={() => {
+              if (cards.length === 0) {
+                Alert.alert('No Cards', 'Add some cards before studying!');
+                return;
+              }
+              navigation.navigate('Study', { deck, cards });
+            }}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="play-circle" size={22} color="#ffffff" />
+            <Text style={styles.studyButtonText} numberOfLines={1}>Study All</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.addButton}
+            onPress={() => navigation.navigate('CreateCard', { deck })}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="add-circle" size={22} color="#06b6d4" />
+            <Text style={styles.addButtonText} numberOfLines={1}>Add Card</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </SafeAreaView>
   );
@@ -203,14 +283,66 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     marginBottom: 4,
   },
+  headerSubtitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
   headerSubtitle: {
     fontSize: 14,
     color: '#9ca3af',
+  },
+  dueBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(245, 158, 11, 0.2)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.3)',
+  },
+  dueBadgeText: {
+    fontSize: 12,
+    color: '#f59e0b',
+    fontWeight: '600',
+  },
+  headerActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  searchIconButton: {
+    padding: 8,
+    borderRadius: 20,
+    backgroundColor: 'rgba(6, 182, 212, 0.2)',
   },
   editButton: {
     padding: 8,
     borderRadius: 20,
     backgroundColor: 'rgba(6, 182, 212, 0.2)',
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#0f0f1e',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginHorizontal: 20,
+    marginTop: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#2a2a3e',
+  },
+  searchIcon: {
+    marginRight: 12,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+    color: '#ffffff',
+    padding: 0,
   },
   listContent: {
     padding: 16,
@@ -288,12 +420,34 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   actionButtons: {
-    flexDirection: 'row',
     padding: 16,
     backgroundColor: '#1a1a2e',
     borderTopWidth: 1,
     borderTopColor: '#2a2a3e',
     gap: 12,
+  },
+  buttonRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  studyDueButton: {
+    flex: 1,
+    flexDirection: 'row',
+    backgroundColor: 'rgba(245, 158, 11, 0.2)',
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.3)',
+    minHeight: 48,
+  },
+  studyDueButtonText: {
+    color: '#f59e0b',
+    fontSize: 15,
+    fontWeight: '600',
   },
   studyButton: {
     flex: 1,
@@ -301,6 +455,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#06b6d4',
     borderRadius: 12,
     paddingVertical: 16,
+    paddingHorizontal: 16,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
@@ -309,6 +464,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 6,
+    minHeight: 52,
   },
   studyButtonText: {
     color: '#ffffff',
@@ -321,11 +477,13 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(6, 182, 212, 0.2)',
     borderRadius: 12,
     paddingVertical: 16,
+    paddingHorizontal: 16,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
     borderWidth: 1,
     borderColor: 'rgba(6, 182, 212, 0.3)',
+    minHeight: 52,
   },
   addButtonText: {
     color: '#22d3ee',

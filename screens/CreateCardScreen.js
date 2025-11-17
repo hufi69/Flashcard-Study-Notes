@@ -41,17 +41,19 @@ const CreateCardScreen = ({ navigation, route }) => {
 
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
+      allowsEditing: false, // Disable editing to avoid cropping UI issues
       quality: 0.8,
+      allowsMultipleSelection: false,
     });
 
-    if (!result.canceled && result.assets[0]) {
+    if (!result.canceled && result.assets && result.assets.length > 0) {
+      const asset = result.assets[0];
       const newAttachment = {
         id: Date.now().toString(),
         type: 'image',
-        uri: result.assets[0].uri,
-        name: result.assets[0].fileName || 'image.jpg',
-        mimeType: result.assets[0].mimeType || 'image/jpeg',
+        uri: asset.uri,
+        name: asset.fileName || `image_${Date.now()}.jpg`,
+        mimeType: asset.mimeType || 'image/jpeg',
       };
       setAttachments([...attachments, newAttachment]);
     }

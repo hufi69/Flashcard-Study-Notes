@@ -9,21 +9,36 @@ import {
   SafeAreaView,
   Platform,
   StatusBar,
+  TextInput,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import DeckCard from '../components/DeckCard';
-import { loadDecks, saveDecks, loadCards, saveCards } from '../utils/storage';
+import { loadDecks, saveDecks, loadCards, saveCards, isAuthenticated } from '../utils/storage';
 
 const DeckListScreen = ({ navigation }) => {
   const [decks, setDecks] = useState([]);
   const [cards, setCards] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showSearch, setShowSearch] = useState(false);
 
   useEffect(() => {
-    loadData();
-    const unsubscribe = navigation.addListener('focus', loadData);
+    checkAuthAndLoadData();
+    const unsubscribe = navigation.addListener('focus', checkAuthAndLoadData);
     return unsubscribe;
   }, [navigation]);
+
+  const checkAuthAndLoadData = async () => {
+    const authenticated = await isAuthenticated();
+    if (!authenticated) {
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'Login' }],
+      });
+      return;
+    }
+    loadData();
+  };
 
   const loadData = async () => {
     try {
@@ -72,12 +87,58 @@ const DeckListScreen = ({ navigation }) => {
     navigation.navigate('DeckDetail', { deck });
   };
 
+  const filteredDecks = decks.filter((deck) =>
+    deck.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#1a1a2e" />
       <View style={styles.header}>
-        <Text style={styles.title}>My Decks</Text>
-        <Text style={styles.subtitle}>Create and manage your flashcard decks</Text>
+        <View style={styles.headerTop}>
+          <View style={styles.titleContainer}>
+            <Text style={styles.title}>My Decks</Text>
+            <Text style={styles.subtitle}>Create and manage your flashcard decks</Text>
+          </View>
+          <View style={styles.headerActions}>
+            <TouchableOpacity
+              style={styles.iconButton}
+              onPress={() => navigation.navigate('Statistics')}
+            >
+              <Ionicons name="stats-chart" size={24} color="#06b6d4" />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.iconButton}
+              onPress={() => setShowSearch(!showSearch)}
+            >
+              <Ionicons name={showSearch ? 'close' : 'search'} size={24} color="#06b6d4" />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.iconButton}
+              onPress={() => navigation.navigate('Profile')}
+            >
+              <Ionicons name="person-circle-outline" size={28} color="#06b6d4" />
+            </TouchableOpacity>
+          </View>
+        </View>
+        {showSearch && (
+          <View style={styles.searchContainer}>
+            <Ionicons name="search" size={20} color="#9ca3af" style={styles.searchIcon} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search decks..."
+              placeholderTextColor="#6b7280"
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              autoFocus
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity onPress={() => setSearchQuery('')}>
+                <Ionicons name="close-circle" size={20} color="#9ca3af" />
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
       </View>
 
       {loading ? (
@@ -92,9 +153,17 @@ const DeckListScreen = ({ navigation }) => {
             Create your first deck to get started!
           </Text>
         </View>
+      ) : filteredDecks.length === 0 && searchQuery ? (
+        <View style={styles.emptyState}>
+          <Ionicons name="search-outline" size={80} color="#4b5563" />
+          <Text style={styles.emptyStateText}>No decks found</Text>
+          <Text style={styles.emptyStateSubtext}>
+            Try a different search term
+          </Text>
+        </View>
       ) : (
         <FlatList
-          data={decks}
+          data={filteredDecks}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => (
             <DeckCard
@@ -143,6 +212,14 @@ const styles = StyleSheet.create({
       },
     }),
   },
+  headerTop: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+  },
+  titleContainer: {
+    flex: 1,
+  },
   title: {
     fontSize: 32,
     fontWeight: '700',
@@ -154,6 +231,34 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#9ca3af',
     lineHeight: 20,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  iconButton: {
+    padding: 8,
+    marginTop: 4,
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#0f0f1e',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginTop: 16,
+    borderWidth: 1,
+    borderColor: '#2a2a3e',
+  },
+  searchIcon: {
+    marginRight: 12,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+    color: '#ffffff',
+    padding: 0,
   },
   listContent: {
     paddingVertical: 8,

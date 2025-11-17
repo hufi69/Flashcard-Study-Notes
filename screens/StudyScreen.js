@@ -11,15 +11,15 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import FlipCard from '../components/FlipCard';
-import { recordRevision, loadRevisions } from '../utils/storage';
+import { recordRevisionWithSpacedRepetition, loadRevisions } from '../utils/storage';
 
 const StudyScreen = ({ navigation, route }) => {
   const { deck, cards: routeCards } = route.params || {};
   const [currentIndex, setCurrentIndex] = useState(0);
   const [revisions, setRevisions] = useState({});
-  const [sessionStats, setSessionStats] = useState({ correct: 0, incorrect: 0 });
+  const [sessionStats, setSessionStats] = useState({ correct: 0, incorrect: 0, hard: 0, easy: 0 });
   const cards = routeCards || [];
-  const statsRef = useRef({ correct: 0, incorrect: 0 });
+  const statsRef = useRef({ correct: 0, incorrect: 0, hard: 0, easy: 0 });
 
   useEffect(() => {
     if (!deck || !cards || cards.length === 0) {
@@ -41,21 +41,25 @@ const StudyScreen = ({ navigation, route }) => {
     setRevisions(loadedRevisions);
   };
 
-  const handleCorrect = async () => {
+  const handleRate = async (quality) => {
+    // Quality: 0 = incorrect, 1 = hard, 2 = medium/good, 3 = easy
     const card = cards[currentIndex];
     if (card) {
-      await recordRevision(card.id, 'correct');
-      const newStats = { ...statsRef.current, correct: statsRef.current.correct + 1 };
-      statsRef.current = newStats;
-      setSessionStats(newStats);
-    }
-  };
-
-  const handleIncorrect = async () => {
-    const card = cards[currentIndex];
-    if (card) {
-      await recordRevision(card.id, 'incorrect');
-      const newStats = { ...statsRef.current, incorrect: statsRef.current.incorrect + 1 };
+      await recordRevisionWithSpacedRepetition(card.id, quality);
+      
+      const newStats = { ...statsRef.current };
+      if (quality === 0) {
+        newStats.incorrect += 1;
+      } else if (quality === 1) {
+        newStats.hard += 1;
+        newStats.correct += 1;
+      } else if (quality === 2) {
+        newStats.correct += 1;
+      } else if (quality === 3) {
+        newStats.easy += 1;
+        newStats.correct += 1;
+      }
+      
       statsRef.current = newStats;
       setSessionStats(newStats);
     }
@@ -83,13 +87,13 @@ const StudyScreen = ({ navigation, route }) => {
     
     Alert.alert(
       'Study Session Complete!',
-      `You got ${stats.correct} out of ${total} cards correct (${percentage}%)`,
+      `You reviewed ${total} cards\n${stats.correct} correct (${percentage}%)\n${stats.incorrect} incorrect`,
       [
         {
           text: 'Study Again',
           onPress: () => {
             setCurrentIndex(0);
-            const resetStats = { correct: 0, incorrect: 0 };
+            const resetStats = { correct: 0, incorrect: 0, hard: 0, easy: 0 };
             statsRef.current = resetStats;
             setSessionStats(resetStats);
           },
@@ -134,8 +138,7 @@ const StudyScreen = ({ navigation, route }) => {
           totalCards={cards.length}
           onNext={handleNext}
           onPrevious={handlePrevious}
-          onCorrect={handleCorrect}
-          onIncorrect={handleIncorrect}
+          onRate={handleRate}
         />
       ) : (
         <View style={styles.errorContainer}>

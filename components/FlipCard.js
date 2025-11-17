@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 const { width } = Dimensions.get('window');
 
-const FlipCard = ({ card, onNext, onPrevious, onCorrect, onIncorrect, currentIndex, totalCards }) => {
+const FlipCard = ({ card, onNext, onPrevious, onRate, currentIndex, totalCards }) => {
   const [isFlipped, setIsFlipped] = useState(false);
   const [fadeAnim] = useState(new Animated.Value(1));
 
@@ -30,13 +30,9 @@ const FlipCard = ({ card, onNext, onPrevious, onCorrect, onIncorrect, currentInd
     setIsFlipped(!isFlipped);
   };
 
-  const handleCorrect = async () => {
-    await onCorrect();
-    resetCard();
-  };
-
-  const handleIncorrect = async () => {
-    await onIncorrect();
+  const handleRate = async (quality) => {
+    // Quality: 0 = incorrect, 1 = hard, 2 = medium, 3 = easy
+    await onRate(quality);
     resetCard();
   };
 
@@ -135,22 +131,38 @@ const FlipCard = ({ card, onNext, onPrevious, onCorrect, onIncorrect, currentInd
       </TouchableOpacity>
 
       {isFlipped && (
-        <View style={styles.actionButtons}>
+        <View style={styles.difficultyButtons}>
           <TouchableOpacity
-            style={[styles.actionButton, styles.incorrectButton]}
-            onPress={handleIncorrect}
+            style={[styles.difficultyButton, styles.incorrectButton]}
+            onPress={() => handleRate(0)}
             activeOpacity={0.8}
           >
-            <Ionicons name="close-circle" size={24} color="#ffffff" />
-            <Text style={styles.actionButtonText}>Incorrect</Text>
+            <Ionicons name="close-circle" size={20} color="#ffffff" />
+            <Text style={styles.difficultyButtonText}>Again</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.actionButton, styles.correctButton]}
-            onPress={handleCorrect}
+            style={[styles.difficultyButton, styles.hardButton]}
+            onPress={() => handleRate(1)}
             activeOpacity={0.8}
           >
-            <Ionicons name="checkmark-circle" size={24} color="#ffffff" />
-            <Text style={styles.actionButtonText}>Correct</Text>
+            <Ionicons name="remove-circle" size={20} color="#ffffff" />
+            <Text style={styles.difficultyButtonText}>Hard</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.difficultyButton, styles.mediumButton]}
+            onPress={() => handleRate(2)}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="checkmark-circle" size={20} color="#ffffff" />
+            <Text style={styles.difficultyButtonText}>Good</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.difficultyButton, styles.easyButton]}
+            onPress={() => handleRate(3)}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="checkmark-circle" size={20} color="#ffffff" />
+            <Text style={styles.difficultyButtonText}>Easy</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -275,39 +287,45 @@ const styles = StyleSheet.create({
     marginRight: 6,
     fontWeight: '500',
   },
-  actionButtons: {
+  difficultyButtons: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
+    justifyContent: 'space-between',
     marginTop: 24,
     marginBottom: 24,
-    gap: 16,
+    gap: 8,
   },
-  actionButton: {
-    flexDirection: 'row',
+  difficultyButton: {
+    flex: 1,
+    flexDirection: 'column',
     alignItems: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 28,
-    borderRadius: 16,
-    minWidth: 140,
+    paddingVertical: 14,
+    paddingHorizontal: 8,
+    borderRadius: 12,
     justifyContent: 'center',
+    gap: 6,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-  correctButton: {
-    backgroundColor: '#10b981',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
   },
   incorrectButton: {
     backgroundColor: '#ef4444',
   },
-  actionButtonText: {
+  hardButton: {
+    backgroundColor: '#f59e0b',
+  },
+  mediumButton: {
+    backgroundColor: '#10b981',
+  },
+  easyButton: {
+    backgroundColor: '#06b6d4',
+  },
+  difficultyButtonText: {
     color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '700',
-    marginLeft: 8,
-    letterSpacing: 0.5,
+    fontSize: 12,
+    fontWeight: '600',
+    letterSpacing: 0.3,
   },
   navigationButtons: {
     flexDirection: 'row',
@@ -364,3 +382,4 @@ const styles = StyleSheet.create({
 });
 
 export default FlipCard;
+
